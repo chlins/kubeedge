@@ -284,8 +284,14 @@ func (mh *MessageHandle) RegisterNode(hi hubio.CloudHubIO, info *model.HubInfo) 
 func (mh *MessageHandle) UnregisterNode(hi hubio.CloudHubIO, info *model.HubInfo, code ExitCode) {
 	mh.nodeLocks.Delete(info.NodeID)
 	mh.nodeConns.Delete(info.NodeID)
-	close(mh.KeepaliveChannel[info.NodeID])
-	delete(mh.KeepaliveChannel, info.NodeID)
+	// release keepalive channel
+	if ch, exist := mh.KeepaliveChannel[info.NodeID]; exist {
+		_, isClose := <-ch
+		if !isClose {
+			close(ch)
+		}
+		delete(mh.KeepaliveChannel, info.NodeID)
+	}
 
 	err := mh.MessageQueue.Publish(constructConnectMessage(info, false))
 	if err != nil {
